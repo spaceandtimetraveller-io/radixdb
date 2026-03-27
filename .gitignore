@@ -1,0 +1,8 @@
+.specstory
+.vscode
+radixdb.test
+radix.db
+cli
+benchdata
+benchs.test
+!cmd/cli

@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package radixdb.v1;
+
+option go_package = "artbenchmark/proto/radixdb/v1;radixdbv1";
+
+message Row {
+  int32 parent_id = 1;
+  int32 id = 2;
+  string full_path = 3;
+}
+
+// Insert: key required (non-empty). id optional — omit for server auto-increment.
+// parent_id optional (omit = root, same as 0). full_path is computed server-side.
+message InsertRequest {
+  string key = 1;
+  optional int32 id = 2;
+  optional int32 parent_id = 3;
+}
+
+message InsertResponse {
+  int32 id = 1;
+}
+
+message GetRequest {
+  string key = 1;
+}
+
+message GetResponse {
+  bool found = 1;
+  repeated Row rows = 2;
+}
+
+message WalkPrefixRequest {
+  string prefix = 1;
+}
+
+message KeyRows {
+  string key = 1;
+  repeated Row rows = 2;
+}
+
+message SyncRequest {}
+
+message SyncResponse {}
+
+message StatsRequest {}
+
+message StatsResponse {
+  uint64 distinct_keys = 1;
+  uint64 total_rows = 2;
+}
+
+service RadixDB {
+  rpc Insert(InsertRequest) returns (InsertResponse);
+  rpc Get(GetRequest) returns (GetResponse);
+  rpc WalkPrefix(WalkPrefixRequest) returns (stream KeyRows);
+  rpc Sync(SyncRequest) returns (SyncResponse);
+  rpc Stats(StatsRequest) returns (StatsResponse);
+}
