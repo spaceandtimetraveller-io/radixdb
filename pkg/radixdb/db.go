@@ -12,7 +12,7 @@ import (
 
 // DB is a block-paged radix tree (DuckDB-style addressing: Ref = block<<12 | offset).
 // Inserts are serialized on mu; root is published after all allocations for that insert complete.
-// The buffer manager caches whole blocks; old mappings are not invalidated on growth.
+// The buffer manager sharded-LRU-caches whole blocks (see DefaultBlockCacheEntries); old mappings are not invalidated on growth.
 // readCloseMu pairs concurrent readers with Close (exclusive drain before teardown).
 type DB struct {
 	mu          sync.Mutex
@@ -213,16 +213,16 @@ func (db *DB) allocRaw(p []byte) (Ref, error) {
 			}
 		}
 		if db.allocOff+uint32(need) <= BlockSize {
-			blk, err := db.bm.readBlock(db.allocBlock)
-			if err != nil {
-				return 0, err
-			}
-			ref := PackRef(db.allocBlock, db.allocOff)
-			copy(blk[db.allocOff:], p)
-			for i := len(p); i < need; i++ {
-				blk[db.allocOff+uint32(i)] = 0
-			}
-			if err := db.bm.writeBlock(db.allocBlock, blk); err != nil {
+			ab := db.allocBlock
+			ao := db.allocOff
+			ref := PackRef(ab, ao)
+			if err := db.bm.modifyBlock(ab, func(blk []byte) error {
+				copy(blk[ao:], p)
+				for i := len(p); i < need; i++ {
+					blk[ao+uint32(i)] = 0
+				}
+				return nil
+			}); err != nil {
 				return 0, err
 			}
 			db.allocOff += uint32(need)
@@ -397,7 +397,7 @@ func (db *DB) walkPrefixBytesUnlocked(prefix []byte, fn func(key []byte, rows []
 func walkPrefixFrom(bm *blockMgr, root Ref, prefix []byte, fn func(key []byte, rows []Row) bool) error {
 	off := root
 	search := prefix
-	before := make([]byte, 0, len(prefix)+64)
+	before := make([]byte, 0, len(prefix)+512)
 	var n, child decodedNode
 	if err := loadNodeInto(bm, off, &n); err != nil {
 		return err

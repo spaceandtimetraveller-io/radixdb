@@ -11,7 +11,8 @@ import (
 // and returns it for benchmarks. The caller must Close the DB. Skips the test if the CSV is missing.
 func openBenchNeighborhoodDB(b *testing.B) *DB {
 	b.Helper()
-	csvPath := filepath.Join("..", "benchs", "neigborhood.csv")
+	// Test process cwd is the package directory (pkg/radixdb), not module root.
+	csvPath := filepath.Join("..", "..", "benchs", "neigborhood.csv")
 	dir := b.TempDir()
 	path := filepath.Join(dir, "neighborhood.rdx2")
 	db, err := Open(path)

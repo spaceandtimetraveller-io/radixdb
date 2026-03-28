@@ -1,12 +1,12 @@
 package radixdb
 
 import (
+	"bytes"
 	"encoding/binary"
-	"unsafe"
 )
 
 // Row is one administrative row stored under a key (same semantics as radixdb).
-// FullPath may alias block memory; do not retain past the enclosing read or after Close.
+// FullPath is a copy of path bytes from disk (safe to retain for the returned slice lifetime).
 type Row struct {
 	ParentID int32
 	ID       int32
@@ -38,7 +38,7 @@ func decodeChunkAt(data []byte, at int) (r Row, next Ref, err error) {
 		r.FullPath = ""
 	} else {
 		p := data[at+12 : at+12+pl]
-		r.FullPath = unsafe.String(unsafe.SliceData(p), pl)
+		r.FullPath = string(bytes.Clone(p))
 	}
 	next = Ref(binary.LittleEndian.Uint64(data[at+12+pl : at+12+pl+8]))
 	return r, next, nil
@@ -50,7 +50,7 @@ func decodeLeafRowsChain(bm *blockMgr, head Ref) ([]Row, error) {
 	if head == 0 {
 		return nil, nil
 	}
-	var rows []Row
+	rows := make([]Row, 0, 4)
 	for r := head; r != 0; {
 		if r.Block() == 0 && r.Offset() < headerUsedV2 {
 			return nil, ErrCorrupt

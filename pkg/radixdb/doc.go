@@ -1,5 +1,5 @@
 // Package radixdb is a block-paged radix tree index (on-disk magic RDX2) inspired by DuckDB-style storage:
-// fixed BlockSize pages, Ref = (blockID<<12)|offset, buffer manager with per-block cache,
+// fixed BlockSize pages, Ref = (blockID<<12)|offset, buffer manager with sharded LRU block cache and sync.Pool,
 // append-only copy-on-write inserts and atomic root publication.
 //
 // It provides Row, Insert, Get, WalkPrefix, Stats, and related helpers over the RDX2 file format.

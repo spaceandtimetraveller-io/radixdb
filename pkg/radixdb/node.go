@@ -71,7 +71,13 @@ func decodeNodeInto(n *decodedNode, data []byte, at int) error {
 	if at+need > len(data) {
 		return ErrCorrupt
 	}
-	n.prefix = data[at+nodeHdr : at+nodeHdr+pl]
+	src := data[at+nodeHdr : at+nodeHdr+pl]
+	if cap(n.prefix) < pl {
+		n.prefix = make([]byte, pl)
+	} else {
+		n.prefix = n.prefix[:pl]
+	}
+	copy(n.prefix, src)
 	off := at + nodeHdr + pl
 	if cap(n.edges) < nc {
 		n.edges = make([]edge, nc)
@@ -100,9 +106,22 @@ func decodeNode(data []byte, at int) (*decodedNode, error) {
 }
 
 func (n *decodedNode) getEdge(label byte) (int, *decodedNode, Ref) {
-	idx := sort.Search(len(n.edges), func(i int) bool { return n.edges[i].label >= label })
-	if idx < len(n.edges) && n.edges[idx].label == label {
-		return idx, nil, n.edges[idx].child
+	edges := n.edges
+	if len(edges) <= 16 {
+		for i := range edges {
+			lb := edges[i].label
+			if lb == label {
+				return i, nil, edges[i].child
+			}
+			if lb > label {
+				break
+			}
+		}
+		return -1, nil, 0
+	}
+	idx := sort.Search(len(edges), func(i int) bool { return edges[i].label >= label })
+	if idx < len(edges) && edges[idx].label == label {
+		return idx, nil, edges[idx].child
 	}
 	return -1, nil, 0
 }
