@@ -6,8 +6,8 @@ import (
 	"math"
 	"sync"
 
+	"artbenchmark/pkg/radixdb"
 	pb "artbenchmark/proto/radixdb/v1"
-	"artbenchmark/radixdb"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -150,9 +150,12 @@ func (s *radixService) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResp
 
 func (s *radixService) WalkPrefix(req *pb.WalkPrefixRequest, stream grpc.ServerStreamingServer[pb.KeyRows]) error {
 	prefix := ""
+	var limit uint32
 	if req != nil {
 		prefix = req.Prefix
+		limit = req.GetLimit()
 	}
+	var sent uint32
 	var sendErr error
 	err := s.db.WalkPrefixBytes([]byte(prefix), func(key []byte, rows []radixdb.Row) bool {
 		kr := &pb.KeyRows{
@@ -164,6 +167,10 @@ func (s *radixService) WalkPrefix(req *pb.WalkPrefixRequest, stream grpc.ServerS
 		}
 		if err := stream.Send(kr); err != nil {
 			sendErr = err
+			return true
+		}
+		sent++
+		if limit > 0 && sent >= limit {
 			return true
 		}
 		return false

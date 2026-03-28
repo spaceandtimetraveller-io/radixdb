@@ -1,4 +1,4 @@
-// Server exposes artbenchmark/radixdb over gRPC.
+// Server exposes artbenchmark/pkg/radixdb over gRPC (API from artbenchmark/proto/radixdb/v1).
 //
 // Regenerate protobuf Go stubs from repository root:
 //
@@ -16,18 +16,19 @@ import (
 	"syscall"
 	"time"
 
+	"artbenchmark/pkg/radixdb"
 	pb "artbenchmark/proto/radixdb/v1"
-	"artbenchmark/radixdb"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"google.golang.org/grpc"
 )
 
 func main() {
-	addr := flag.String("addr", ":50051", "gRPC listen address")
-	metricsAddr := flag.String("metrics-addr", ":9090", "HTTP listen address for Prometheus /metrics (empty to disable)")
-	dbPath := flag.String("db", "radix.db", "path to radixdb file (created if missing)")
+	addr := flag.String("addr", ":50052", "gRPC listen address")
+	metricsAddr := flag.String("metrics-addr", ":9091", "HTTP listen address for Prometheus /metrics (empty to disable)")
+	dbPath := flag.String("db", "radix2.rdx2", "path to RDX2 radixdb database file (.rdx2; created if missing)")
 	readOnly := flag.Bool("readonly", false, "open database read-only (Insert/Sync will fail)")
+	compactInterval := flag.Duration("compact-interval", 0, "if >0 and not readonly, run CompactIfNeeded on this interval (blocks readers while compacting)")
 	flag.Parse()
 
 	var db *radixdb.DB
@@ -78,6 +79,10 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	if *compactInterval > 0 && !*readOnly {
+		go runPeriodicCompaction(ctx, db, *compactInterval)
+	}
 
 	go func() {
 		<-ctx.Done()

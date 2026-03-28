@@ -33,6 +33,8 @@ message GetResponse {
 
 message WalkPrefixRequest {
   string prefix = 1;
+  // Maximum number of distinct keys to stream (top-K by radix walk order). 0 means no limit.
+  uint32 limit = 2;
 }
 
 message KeyRows {

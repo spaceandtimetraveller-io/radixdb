@@ -284,8 +284,10 @@ func (x *GetResponse) GetRows() []*Row {
 }
 
 type WalkPrefixRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Prefix        string                 `protobuf:"bytes,1,opt,name=prefix,proto3" json:"prefix,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Prefix string                 `protobuf:"bytes,1,opt,name=prefix,proto3" json:"prefix,omitempty"`
+	// Maximum number of distinct keys to stream (top-K by radix walk order). 0 means no limit.
+	Limit         uint32 `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -325,6 +327,13 @@ func (x *WalkPrefixRequest) GetPrefix() string {
 		return x.Prefix
 	}
 	return ""
+}
+
+func (x *WalkPrefixRequest) GetLimit() uint32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
 }
 
 type KeyRows struct {
@@ -563,9 +572,10 @@ const file_proto_radixdb_v1_radixdb_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\"H\n" +
 	"\vGetResponse\x12\x14\n" +
 	"\x05found\x18\x01 \x01(\bR\x05found\x12#\n" +
-	"\x04rows\x18\x02 \x03(\v2\x0f.radixdb.v1.RowR\x04rows\"+\n" +
+	"\x04rows\x18\x02 \x03(\v2\x0f.radixdb.v1.RowR\x04rows\"A\n" +
 	"\x11WalkPrefixRequest\x12\x16\n" +
-	"\x06prefix\x18\x01 \x01(\tR\x06prefix\"@\n" +
+	"\x06prefix\x18\x01 \x01(\tR\x06prefix\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\rR\x05limit\"@\n" +
 	"\aKeyRows\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12#\n" +
 	"\x04rows\x18\x02 \x03(\v2\x0f.radixdb.v1.RowR\x04rows\"\r\n" +

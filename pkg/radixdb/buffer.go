@@ -31,7 +31,7 @@ func (m *blockMgr) blockCountFromFile() (uint32, error) {
 }
 
 // readBlock returns the cached block slice or reads it from disk. The returned slice must not be
-// mutated by callers; it may alias the in-memory cache (same as mmap-backed reads).
+// mutated by callers; it may alias the in-memory cache.
 func (m *blockMgr) readBlock(id uint32) ([]byte, error) {
 	m.mu.RLock()
 	if b, ok := m.cache[id]; ok {

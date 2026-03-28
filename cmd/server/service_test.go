@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"artbenchmark/pkg/radixdb"
 	pb "artbenchmark/proto/radixdb/v1"
-	"artbenchmark/radixdb"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -16,7 +16,7 @@ import (
 
 func TestInsertComputesFullPath(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "t.db")
+	path := filepath.Join(dir, "t.rdx2")
 	db, err := radixdb.Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -73,7 +73,7 @@ func TestInsertComputesFullPath(t *testing.T) {
 
 func TestHydrateParentIndexAfterRestart(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "t.db")
+	path := filepath.Join(dir, "t.rdx2")
 
 	db1, err := radixdb.Open(path)
 	if err != nil {
@@ -113,7 +113,7 @@ func TestHydrateParentIndexAfterRestart(t *testing.T) {
 
 func TestInsertAutoincrementID(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "t.db")
+	path := filepath.Join(dir, "t.rdx2")
 	db, err := radixdb.Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -165,7 +165,7 @@ func TestInsertAutoincrementID(t *testing.T) {
 
 func TestStatsRPC(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "t.db")
+	path := filepath.Join(dir, "t.rdx2")
 	db, err := radixdb.Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -211,5 +211,79 @@ func TestStatsRPC(t *testing.T) {
 	}
 	if st.GetDistinctKeys() != 1 || st.GetTotalRows() != 2 {
 		t.Fatalf("stats: distinct=%d total=%d", st.GetDistinctKeys(), st.GetTotalRows())
+	}
+}
+
+func TestWalkPrefixLimit(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "walklim.rdx2")
+	db, err := radixdb.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	svc := &radixService{db: db}
+	if err := svc.hydrateParentIndex(); err != nil {
+		t.Fatal(err)
+	}
+
+	lis := bufconn.Listen(1024 * 1024)
+	s := grpc.NewServer()
+	pb.RegisterRadixDBServer(s, svc)
+	go func() {
+		if err := s.Serve(lis); err != nil {
+			t.Logf("serve: %v", err)
+		}
+	}()
+	t.Cleanup(func() { s.Stop() })
+
+	ctx := context.Background()
+	conn, err := grpc.DialContext(ctx, "passthrough:///bufnet",
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return lis.Dial() }),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	cli := pb.NewRadixDBClient(conn)
+
+	for _, k := range []string{"apple", "apricot", "banana"} {
+		if _, err := cli.Insert(ctx, &pb.InsertRequest{Key: k}); err != nil {
+			t.Fatalf("insert %q: %v", k, err)
+		}
+	}
+
+	st, err := cli.WalkPrefix(ctx, &pb.WalkPrefixRequest{Prefix: "ap", Limit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for {
+		_, err := st.Recv()
+		if err != nil {
+			break
+		}
+		n++
+	}
+	if n != 1 {
+		t.Fatalf("limit=1: got %d messages want 1", n)
+	}
+
+	st2, err := cli.WalkPrefix(ctx, &pb.WalkPrefixRequest{Prefix: "", Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	n = 0
+	for {
+		_, err := st2.Recv()
+		if err != nil {
+			break
+		}
+		n++
+	}
+	if n != 2 {
+		t.Fatalf("limit=2 full walk: got %d messages want 2", n)
 	}
 }
